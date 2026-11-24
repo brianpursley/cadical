@@ -34,6 +34,10 @@ extern "C" {
 
 #endif
 
+#ifdef __APPLE__
+#include <mach/mach.h>
+#endif
+
 #include <string.h>
 }
 
@@ -162,6 +166,18 @@ uint64_t maximum_resident_set_size () {
 #endif
 }
 
+#ifdef __APPLE__
+// Darwin provides current RSS through Mach.
+uint64_t current_resident_set_size () {
+  mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+  mach_task_basic_info_data_t info = {};
+  const kern_return_t result = task_info (mach_task_self (),
+    MACH_TASK_BASIC_INFO, reinterpret_cast<task_info_t> (&info), &count);
+  if (result != KERN_SUCCESS)
+    return 0;
+  return info.resident_size;
+}
+#else
 // Unfortunately 'getrusage' on Linux does not support current resident
 // set size (the field 'ru_ixrss' is there but according to the man page
 // 'unused'). Thus we fall back to use the '/proc' file system instead. So
@@ -181,6 +197,7 @@ uint64_t current_resident_set_size () {
   fclose (file);
   return scanned == 2 ? rss * sysconf (_SC_PAGESIZE) : 0;
 }
+#endif
 
 #endif
 
